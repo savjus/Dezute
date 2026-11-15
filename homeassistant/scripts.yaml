@@ -4,7 +4,8 @@ generate_parcel_box_code:
   mode: restart
   sequence:
     - variables:
-        access_code: "{{ range(100000, 1000000) | random }}"
+        access_code: >-
+          {{ range(1, 10) | random }}{{ range(0, 10) | random }}{{ range(0, 10) | random }}{{ range(0, 10) | random }}{{ range(0, 10) | random }}{{ range(0, 10) | random }}
     - service: input_text.set_value
       target:
         entity_id: input_text.parcel_box_access_code
