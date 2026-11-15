@@ -1,0 +1,49 @@
+services:
+  mqtt:
+    image: eclipse-mosquitto:2
+    container_name: mqtt
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config:ro
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+    networks:
+      - smarthome
+
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: homeassistant
+    restart: unless-stopped
+    depends_on:
+      - mqtt
+    ports:
+      - "8123:8123"
+    environment:
+      TZ: ${TZ:-Europe/Vilnius}
+    volumes:
+      - ./homeassistant:/config
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - smarthome
+
+  esphome:
+    image: ghcr.io/esphome/esphome:stable
+    container_name: esphome
+    restart: unless-stopped
+    ports:
+      - "6052:6052"
+      - "6123:6123"
+    environment:
+      TZ: ${TZ:-Europe/Vilnius}
+    volumes:
+      - ./esphome:/config
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - smarthome
+
+networks:
+  smarthome:
+    name: smarthome

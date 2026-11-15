@@ -1,0 +1,24 @@
+generate_parcel_box_code:
+  alias: Sugeneruoti siuntos dezutes koda
+  description: Sugeneruoja vienkartini 6 skaitmenu koda ir perduoda ji dezutei per MQTT.
+  mode: restart
+  sequence:
+    - variables:
+        access_code: "{{ range(100000, 1000000) | random }}"
+    - service: input_text.set_value
+      target:
+        entity_id: input_text.parcel_box_access_code
+      data:
+        value: "{{ access_code }}"
+    - service: mqtt.publish
+      data:
+        topic: parcel-box/access-code
+        payload: "{{ access_code }}"
+        retain: false
+    - delay:
+        minutes: 5
+    - service: input_text.set_value
+      target:
+        entity_id: input_text.parcel_box_access_code
+      data:
+        value: ""

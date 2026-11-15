@@ -1,0 +1,27 @@
+Downloaded from https://wokwi.com/projects/480393254264107009
+
+Simulate this project on https://wokwi.com
+
+
+## Komponentai (M5Stack imitacija)
+| Sistemos dalis       | Wokwi komponentas        | ESP32 kontaktai |
+|----------------------|--------------------------|-----------------|
+| Valdiklis (M5Stack)  | ESP32 DevKit V1          | –               |
+| Kodo įvedimas (PIN)  | 4x4 klaviatūra           | R1–R4: D13, D12, D14, D27; C1–C4: D26, D25, D33, D32 |
+| Ekranas              | LCD 1602 I2C             | SDA D21, SCL D22 |
+| Užraktas             | Servo                    | D18 |
+| Durelių jutiklis     | Slankusis jungiklis      | D4 (LOW = uždaryta) |
+| Siuntos jutiklis     | HC-SR04                  | TRIG D5, ECHO D19 |
+| Atrakinimo indikacija| Žalias LED + 220 Ω       | D15 |
+
+## Kaip išbandyti scenarijų
+1. Prieš pradėdami nustatykite durelių jungiklį į „uždaryta“ padėtį (BUSENA komanda parodo, ką mato valdiklis).
+2. Serial Monitor įrašykite KODAS – savininko programėlė sugeneruoja vienkartinį 6 skaitmenų kodą.
+3. Klaviatūra įveskite kodą ir spauskite # (* – ištrinti). Servo atrakina, užsidega LED.
+4. Perjunkite jungiklį – durelės atidarytos.
+5. Paspauskite ant HC-SR04 ir nustatykite atstumą (pvz. 15 cm – siunta įdėta, 40 cm – tuščia).
+6. Perjunkite jungiklį atgal – durelės uždarytos. Dėžutė užsirakina, patikrina turinį ir
+   Serial Monitor išveda pranešimą savininkui: „Tuscia“ arba „Pilna“.
+7. Tas pats kodas antrą kartą nebetinka.
+
+https://www.duino.lt/klaviaturos-mygtukai-joystick-ai/13568-arduino-4x4-klaviatura.html

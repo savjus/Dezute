@@ -1,0 +1,91 @@
+{
+  "version": 1,
+  "author": "Išmanioji siuntų dėžutė",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "wokwi-esp32-devkit-v1", "id": "esp", "top": 4.7, "left": 4.6, "attrs": {} },
+    { "type": "wokwi-membrane-keypad", "id": "keypad", "top": -59.6, "left": -416.8, "attrs": {} },
+    {
+      "type": "wokwi-lcd1602",
+      "id": "lcd",
+      "top": -195.2,
+      "left": 159.2,
+      "attrs": { "pins": "i2c" }
+    },
+    { "type": "wokwi-servo", "id": "lock", "top": 40, "left": 300, "attrs": {} },
+    { "type": "wokwi-slide-switch", "id": "door", "top": 196.4, "left": 300.7, "attrs": {} },
+    {
+      "type": "wokwi-hc-sr04",
+      "id": "parcel",
+      "top": 280,
+      "left": 120,
+      "attrs": { "distance": "40" }
+    },
+    { "type": "wokwi-led", "id": "led", "top": 160, "left": 230, "attrs": { "color": "green" } },
+    {
+      "type": "wokwi-resistor",
+      "id": "r1",
+      "top": 230,
+      "left": 200,
+      "rotate": 90,
+      "attrs": { "value": "220" }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "t1",
+      "top": -100,
+      "left": -420,
+      "attrs": { "text": "Kodo įvedimas (PIN)" }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "t2",
+      "top": 10,
+      "left": 300,
+      "attrs": { "text": "Užraktas (servo)" }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "t3",
+      "top": 172.8,
+      "left": 297.6,
+      "attrs": { "text": "Durelių jutiklis" }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "t4",
+      "top": 360,
+      "left": 120,
+      "attrs": { "text": "Siuntos jutiklis" }
+    }
+  ],
+  "connections": [
+    [ "esp:TX0", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX0", "$serialMonitor:TX", "", [] ],
+    [ "keypad:R1", "esp:D13", "blue", [] ],
+    [ "keypad:R2", "esp:D12", "blue", [] ],
+    [ "keypad:R3", "esp:D14", "blue", [] ],
+    [ "keypad:R4", "esp:D27", "blue", [] ],
+    [ "keypad:C1", "esp:D26", "violet", [] ],
+    [ "keypad:C2", "esp:D25", "violet", [] ],
+    [ "keypad:C3", "esp:D33", "violet", [] ],
+    [ "keypad:C4", "esp:D32", "violet", [] ],
+    [ "lcd:SDA", "esp:D21", "green", [] ],
+    [ "lcd:SCL", "esp:D22", "yellow", [] ],
+    [ "lcd:VCC", "esp:VIN", "red", [] ],
+    [ "lcd:GND", "esp:GND.1", "black", [] ],
+    [ "lock:PWM", "esp:D18", "orange", [] ],
+    [ "lock:V+", "esp:VIN", "red", [] ],
+    [ "lock:GND", "esp:GND.1", "black", [] ],
+    [ "door:2", "esp:D4", "green", [] ],
+    [ "door:1", "esp:GND.1", "black", [] ],
+    [ "parcel:TRIG", "esp:D5", "orange", [] ],
+    [ "parcel:ECHO", "esp:D19", "cyan", [] ],
+    [ "parcel:VCC", "esp:VIN", "red", [] ],
+    [ "parcel:GND", "esp:GND.1", "black", [] ],
+    [ "led:A", "esp:D15", "green", [] ],
+    [ "led:C", "r1:1", "black", [] ],
+    [ "r1:2", "esp:GND.2", "black", [] ]
+  ],
+  "dependencies": {}
+}

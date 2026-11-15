@@ -1,0 +1,27 @@
+# ESPHome generated state, caches, builds, and secrets
+esphome/.esphome/
+esphome/.device-builder*
+esphome/.receiver_peers.json
+esphome/.offloader_pairings.json
+esphome/secrets.yaml
+esphome/secrets.yml
+
+# Home Assistant runtime state, caches, logs, databases, and secrets
+homeassistant/.cache/
+homeassistant/.cloud/
+homeassistant/.storage/
+homeassistant/tts/
+homeassistant/*.log
+homeassistant/*.log.*
+homeassistant/*.db
+homeassistant/*.db-*
+homeassistant/*.lock
+homeassistant/secrets.yaml
+homeassistant/secrets.yml
+
+# Mosquitto runtime data and logs
+mosquitto/data/*
+mosquitto/log/*
+
+# Local OS files
+.DS_Store

@@ -1,0 +1,33 @@
+title: Siuntu dezute
+views:
+  - title: Apzvalga
+    path: overview
+    icon: mdi:package-variant-closed
+    cards:
+      - type: button
+        name: Sugeneruoti koda
+        icon: mdi:form-textbox-password
+        entity: script.generate_parcel_box_code
+        tap_action:
+          action: call-service
+          service: script.generate_parcel_box_code
+      - type: entities
+        title: Dezutes busena
+        show_header_toggle: false
+        entities:
+          - entity: binary_sensor.parcel_box_dureles
+            name: Dureles
+          - entity: binary_sensor.parcel_box_m5stack_a_mygtukas
+            name: M5Stack A mygtukas
+          - entity: sensor.parcel_box_atstumas
+            name: Atstumas
+          - entity: switch.parcel_box_atrakinti
+            name: Uzraktas
+      - type: entity
+        entity: input_text.parcel_box_access_code
+        name: Aktyvus kodas
+        icon: mdi:form-textbox-password
+      - type: markdown
+        content: >-
+          Kodas galioja 5 minutes. Paspaudus mygtuka auksciau, kodas
+          perduodamas i dezute per MQTT.
