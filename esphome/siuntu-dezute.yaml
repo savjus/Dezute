@@ -1,0 +1,393 @@
+# =====================================================================
+#  Išmanioji siuntų dėžutė – M5Stack Basic (ESPHome)
+#
+#  Kontaktai (pagal sujungimų maketą):
+#    Klaviatūra  eilutės R1–R4: G16, G17, G2, G5
+#                stulpeliai C1–C3: G12, G13, G15   (C4 nejungiamas)
+#    Servo FS90R (užraktas)        signalas G26
+#    Užrakto galinis jungiklis     G25  (paspaustas = HIGH = užrakinta)
+#    Durelių mikrojungiklis        G21  (paspaustas = HIGH = uždarytos)
+#    IR jutiklis KY-032            G35  (LOW = daiktas aptiktas)
+#    Ekranas                       įmontuotas ILI9342C
+#
+#  Kodą tikrina Home Assistant. M5Stack tik siunčia įvestą kodą
+#  (įvykis esphome.siuntu_dezute_kodas) ir laukia komandos atrakinti.
+# =====================================================================
+
+substitutions:
+  # FS90R sukimosi kryptys. Jei servo sukasi ne į tą pusę – sukeisk ženklus.
+  uzrakinimo_kryptis: "-1.0"
+  atrakinimo_kryptis: "1.0"
+  # Kiek laiko suktis atrakinant (parenkama išbandžius)
+  atrakinimo_laikas: 300ms
+  # Kiek laiko kurjeris turi atidaryti dureles po atrakinimo
+  atidarymo_laikas: 30s
+
+esphome:
+  name: siuntu-dezute
+  friendly_name: Siuntų dėžutė
+  on_boot:
+    priority: -100
+    then:
+      - script.execute: uzrakinti
+
+esp32:
+  board: m5stack-core-esp32
+
+logger:
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+  actions:
+    # Home Assistant iškviečia, kai kodas teisingas:
+    #   esphome.siuntu_dezute_atrakinti
+    - action: atrakinti
+      then:
+        - script.execute: atrakinti
+    # Home Assistant iškviečia, kai kodas netinka:
+    #   esphome.siuntu_dezute_rodyti_pranesima (tekstas: "...")
+    - action: rodyti_pranesima
+      variables:
+        tekstas: string
+      then:
+        - lambda: |-
+            id(pranesimas) = tekstas;
+        - component.update: ekranas
+        - delay: 3s
+        - lambda: |-
+            if (id(busena) == 0) id(pranesimas) = "Įveskite kodą";
+        - component.update: ekranas
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "Siuntu dezute"
+    password: !secret ap_password
+
+captive_portal:
+
+# ---------------------------------------------------------------------
+#  Būsenos
+#    0 – užrakinta, laukiama kodo
+#    1 – atrakinta, laukiama, kol kurjeris atidarys dureles
+#    2 – durelės atidarytos
+#    3 – durelės uždarytos, tikrinamas turinys
+# ---------------------------------------------------------------------
+globals:
+  - id: busena
+    type: int
+    initial_value: "0"
+  - id: ivestas
+    type: std::string
+    initial_value: '""'
+  - id: pranesimas
+    type: std::string
+    initial_value: '"Įveskite kodą"'
+
+# ---------------------------------------------------------------------
+#  Ekranas
+# ---------------------------------------------------------------------
+spi:
+  clk_pin: GPIO18
+  mosi_pin: GPIO23
+  miso_pin: GPIO19
+
+switch:
+  - platform: gpio
+    pin: GPIO32
+    id: ekrano_apsvietimas
+    name: Ekrano apšvietimas
+    restore_mode: ALWAYS_ON
+
+font:
+  - file: "gfonts://Roboto"
+    id: f_mazas
+    size: 16
+    glyphs: " !#%()*+,-./0123456789:?ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzĄČĘĖĮŠŲŪŽąčęėįšųūž–"
+  - file: "gfonts://Roboto@500"
+    id: f_vidutinis
+    size: 22
+    glyphs: " !#%()*+,-./0123456789:?ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzĄČĘĖĮŠŲŪŽąčęėįšųūž–"
+  - file: "gfonts://Roboto Mono@500"
+    id: f_didelis
+    size: 34
+    glyphs: "0123456789"
+
+display:
+  - platform: ili9xxx
+    id: ekranas
+    model: M5STACK
+    cs_pin: GPIO14
+    dc_pin: GPIO27
+    reset_pin: GPIO33
+    # Jei spalvos atrodo apverstos (balta vietoj juodos) – pakeisk į false
+    invert_colors: true
+    update_interval: 1s
+    lambda: |-
+      Color fonas = Color(0, 0, 0);
+      if (id(busena) == 1 || id(busena) == 2) fonas = Color(0, 70, 30);
+      it.fill(fonas);
+
+      it.print(160, 14, id(f_mazas), Color(160, 170, 180), TextAlign::TOP_CENTER, "Siuntų dėžutė");
+      it.print(160, 62, id(f_vidutinis), Color(255, 255, 255), TextAlign::TOP_CENTER, id(pranesimas).c_str());
+
+      if (id(busena) == 0) {
+        std::string k = id(ivestas);
+        for (int i = 0; i < 6; i++) {
+          int x = 34 + i * 44;
+          it.rectangle(x, 118, 38, 52, Color(110, 120, 130));
+          if (i < (int) k.size()) {
+            char c[2] = {k[i], 0};
+            it.print(x + 19, 144, id(f_didelis), Color(255, 255, 255), TextAlign::CENTER, c);
+          }
+        }
+        it.print(160, 196, id(f_mazas), Color(160, 170, 180), TextAlign::TOP_CENTER, "# – patvirtinti     * – ištrinti");
+      }
+
+# ---------------------------------------------------------------------
+#  Klaviatūra
+#  Eilutės – išėjimai, stulpeliai – įėjimai su vidiniais pull-up.
+# ---------------------------------------------------------------------
+matrix_keypad:
+  id: klaviatura
+  rows:
+    - pin: GPIO16
+    - pin: GPIO17
+    - pin:
+        number: GPIO2
+        ignore_strapping_warning: true
+    - pin:
+        number: GPIO5
+        ignore_strapping_warning: true
+  columns:
+    - pin:
+        number: GPIO12
+        ignore_strapping_warning: true
+    - pin: GPIO13
+    - pin:
+        number: GPIO15
+        ignore_strapping_warning: true
+  keys: "123456789*0#"
+
+key_collector:
+  - id: kodo_skaitytuvas
+    source_id: klaviatura
+    min_length: 6
+    max_length: 6
+    end_keys: "#"
+    end_key_required: true
+    back_keys: "*"
+    allowed_keys: "0123456789"
+    timeout: 30s
+    on_progress:
+      - lambda: |-
+          if (id(busena) == 0) id(ivestas) = x;
+      - component.update: ekranas
+    on_timeout:
+      - lambda: |-
+          id(ivestas) = "";
+      - component.update: ekranas
+    on_result:
+      - if:
+          condition:
+            lambda: "return id(busena) == 0;"
+          then:
+            - lambda: |-
+                id(ivestas) = "";
+            - if:
+                condition:
+                  api.connected:
+                    state_subscription_only: true
+                then:
+                  - lambda: |-
+                      id(pranesimas) = "Tikrinama...";
+                  - component.update: ekranas
+                  - homeassistant.event:
+                      event: esphome.siuntu_dezute_kodas
+                      data:
+                        kodas: !lambda "return x;"
+                else:
+                  - lambda: |-
+                      id(pranesimas) = "Nėra ryšio su serveriu";
+                  - component.update: ekranas
+                  - delay: 3s
+                  - lambda: |-
+                      id(pranesimas) = "Įveskite kodą";
+                  - component.update: ekranas
+
+# ---------------------------------------------------------------------
+#  Užraktas – servo FS90R (360°, nuolatinio sukimosi)
+#  level: -1 ir 1 – sukasi į priešingas puses, 0 – stovi
+# ---------------------------------------------------------------------
+output:
+  - platform: ledc
+    id: servo_pwm
+    pin: GPIO26
+    frequency: 50 Hz
+
+servo:
+  - id: uzrakto_servo
+    output: servo_pwm
+
+script:
+  - id: uzrakinti
+    mode: restart
+    then:
+      - if:
+          condition:
+            binary_sensor.is_off: uzrakto_galine_padetis
+          then:
+            - servo.write:
+                id: uzrakto_servo
+                level: ${uzrakinimo_kryptis}
+            - wait_until:
+                condition:
+                  binary_sensor.is_on: uzrakto_galine_padetis
+                timeout: 3s
+      - servo.write:
+          id: uzrakto_servo
+          level: 0.0
+      - servo.detach: uzrakto_servo
+      - if:
+          condition:
+            binary_sensor.is_off: uzrakto_galine_padetis
+          then:
+            - logger.log:
+                level: WARN
+                format: "Užraktas nepasiekė galinės padėties per 3 s"
+
+  - id: atrakinti
+    mode: single
+    then:
+      - lambda: |-
+          id(busena) = 1;
+          id(ivestas) = "";
+          id(pranesimas) = "Atrakinta. Atidarykite";
+      - component.update: ekranas
+      - servo.write:
+          id: uzrakto_servo
+          level: ${atrakinimo_kryptis}
+      - delay: ${atrakinimo_laikas}
+      - servo.write:
+          id: uzrakto_servo
+          level: 0.0
+      - servo.detach: uzrakto_servo
+      - wait_until:
+          condition:
+            binary_sensor.is_on: dureles
+          timeout: ${atidarymo_laikas}
+      # Jei kurjeris neatidarė durelių laiku – vėl užrakinama
+      - if:
+          condition:
+            lambda: "return id(busena) == 1;"
+          then:
+            - lambda: |-
+                id(busena) = 0;
+                id(pranesimas) = "Laikas baigėsi";
+            - script.execute: uzrakinti
+            - component.update: ekranas
+            - delay: 3s
+            - lambda: |-
+                id(pranesimas) = "Įveskite kodą";
+            - component.update: ekranas
+
+  - id: patikrinti_turini
+    mode: single
+    then:
+      - lambda: |-
+          id(busena) = 3;
+          id(pranesimas) = "Užrakinama...";
+      - component.update: ekranas
+      - delay: 500ms
+      - script.execute: uzrakinti
+      - script.wait: uzrakinti
+      - delay: 300ms
+      - text_sensor.template.publish:
+          id: dezutes_turinys
+          state: !lambda 'return id(siunta).state ? "Pilna" : "Tuščia";'
+      - homeassistant.event:
+          event: esphome.siuntu_dezute_pristatymas
+          data:
+            turinys: !lambda 'return id(siunta).state ? "Pilna" : "Tuščia";'
+      - lambda: |-
+          id(busena) = 0;
+          id(pranesimas) = id(siunta).state ? "Siunta pristatyta" : "Dėžutė tuščia";
+      - component.update: ekranas
+      - delay: 4s
+      - lambda: |-
+          id(pranesimas) = "Įveskite kodą";
+      - component.update: ekranas
+
+# ---------------------------------------------------------------------
+#  Jutikliai
+# ---------------------------------------------------------------------
+binary_sensor:
+  # Durelės: ON = atidarytos. Uždarytos durelės paspaudžia jungiklį (G21 = HIGH).
+  - platform: gpio
+    id: dureles
+    name: Durelės
+    device_class: door
+    pin:
+      number: GPIO21
+      mode: INPUT_PULLDOWN
+      inverted: true
+    filters:
+      - delayed_on_off: 50ms
+    on_press:
+      - if:
+          condition:
+            lambda: "return id(busena) == 1;"
+          then:
+            - lambda: |-
+                id(busena) = 2;
+                id(pranesimas) = "Įdėkite siuntą ir uždarykite";
+            - component.update: ekranas
+          else:
+            # Durelės atidarytos be kodo
+            - if:
+                condition:
+                  lambda: "return id(busena) == 0;"
+                then:
+                  - homeassistant.event:
+                      event: esphome.siuntu_dezute_ispejimas
+                      data:
+                        priezastis: "Durelės atidarytos be kodo"
+    on_release:
+      - if:
+          condition:
+            lambda: "return id(busena) == 2;"
+          then:
+            - script.execute: patikrinti_turini
+
+  # Užrakto galinis jungiklis: ON = skląstis užrakintoje padėtyje (G25 = HIGH)
+  - platform: gpio
+    id: uzrakto_galine_padetis
+    name: Užrakinta
+    pin:
+      number: GPIO25
+      mode: INPUT_PULLDOWN
+    filters:
+      - delayed_on_off: 20ms
+
+  # IR jutiklis KY-032: ON = dėžutėje yra daiktas (OUT = LOW)
+  - platform: gpio
+    id: siunta
+    name: Siunta dėžutėje
+    device_class: occupancy
+    pin:
+      number: GPIO35
+      mode: INPUT
+      inverted: true
+    filters:
+      - delayed_on_off: 200ms
+
+text_sensor:
+  - platform: template
+    id: dezutes_turinys
+    name: Dėžutės turinys

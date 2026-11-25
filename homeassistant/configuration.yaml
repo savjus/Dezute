@@ -6,6 +6,7 @@ homeassistant:
   name: Siuntu dezute
   unit_system: metric
   time_zone: Europe/Vilnius
+  packages: !include_dir_named packages
 
 # Load frontend themes from the themes folder
 frontend:
@@ -14,12 +15,6 @@ frontend:
 automation: !include automations.yaml
 script: !include scripts.yaml
 scene: !include scenes.yaml
-
-input_text:
-  parcel_box_access_code:
-    name: Aktyvus siuntos dezutes kodas
-    max: 6
-    mode: password
 
 lovelace:
   resource_mode: yaml

@@ -5,29 +5,43 @@ views:
     icon: mdi:package-variant-closed
     cards:
       - type: button
-        name: Sugeneruoti koda
+        name: Sugeneruoti kodą kurjeriui
         icon: mdi:form-textbox-password
-        entity: script.generate_parcel_box_code
+        entity: script.siuntu_dezute_generuoti_koda
         tap_action:
           action: call-service
-          service: script.generate_parcel_box_code
+          service: script.turn_on
+          target:
+            entity_id: script.siuntu_dezute_generuoti_koda
+      - type: entity
+        entity: input_text.siuntu_dezute_kodas
+        name: Aktyvus kurjerio kodas
+        icon: mdi:key
       - type: entities
-        title: Dezutes busena
+        title: Kodo galiojimas
         show_header_toggle: false
         entities:
-          - entity: binary_sensor.parcel_box_dureles
-            name: Dureles
-          - entity: binary_sensor.parcel_box_m5stack_a_mygtukas
-            name: M5Stack A mygtukas
-          - entity: sensor.parcel_box_atstumas
-            name: Atstumas
-          - entity: switch.parcel_box_atrakinti
-            name: Uzraktas
+          - entity: binary_sensor.siuntu_dezute_kodas_aktyvus
+            name: Kodas aktyvus
+          - entity: sensor.siuntu_dezute_kodo_liko
+            name: Likęs laikas
+      - type: entities
+        title: Dėžutės būsena
+        show_header_toggle: false
+        entities:
+          - entity: binary_sensor.siuntu_dezute_dureles
+            name: Durelės
+          - entity: binary_sensor.siuntu_dezute_uzrakinta
+            name: Užrakinta
+          - entity: binary_sensor.siuntu_dezute_siunta_dezuteje
+            name: Siunta dėžutėje
+          - entity: sensor.siuntu_dezute_dezutes_turinys
+            name: Dėžutės turinys
       - type: entity
-        entity: input_text.parcel_box_access_code
-        name: Aktyvus kodas
-        icon: mdi:form-textbox-password
+        entity: counter.siuntu_dezute_klaidos
+        name: Neteisingi bandymai
+        icon: mdi:counter
       - type: markdown
         content: >-
-          Kodas galioja 5 minutes. Paspaudus mygtuka auksciau, kodas
-          perduodamas i dezute per MQTT.
+          Paspausk „Sugeneruoti kodą kurjeriui“. Kodas bus rodomas šiame
+          skydelyje ir Home Assistant pranešimuose. Jis galioja 5 minutes.

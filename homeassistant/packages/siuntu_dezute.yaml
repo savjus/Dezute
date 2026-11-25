@@ -1,0 +1,243 @@
+# =====================================================================
+#  Išmanioji siuntų dėžutė – Home Assistant paketas
+#
+#  Įdėk šį failą į /config/packages/ ir configuration.yaml pridėk:
+#    homeassistant:
+#      packages: !include_dir_named packages
+#
+#  Kodas ir įspėjimai rodomi Home Assistant pranešimuose.
+# =====================================================================
+
+input_text:
+  siuntu_dezute_kodas:
+    name: Siuntų dėžutės kodas
+    icon: mdi:numeric
+    min: 0
+    max: 6
+    initial: ""
+
+input_datetime:
+  siuntu_dezute_kodas_galioja_iki:
+    name: Kodas galioja iki
+    has_date: true
+    has_time: true
+  siuntu_dezute_blokuota_iki:
+    name: Klaviatūra užblokuota iki
+    has_date: true
+    has_time: true
+
+counter:
+  siuntu_dezute_klaidos:
+    name: Neteisingi bandymai
+    initial: 0
+    step: 1
+
+template:
+  - triggers:
+      - trigger: time_pattern
+        seconds: "/1"
+      - trigger: state
+        entity_id:
+          - input_text.siuntu_dezute_kodas
+          - input_datetime.siuntu_dezute_kodas_galioja_iki
+    binary_sensor:
+      - name: Siuntų dėžutės kodas aktyvus
+        default_entity_id: binary_sensor.siuntu_dezute_kodas_aktyvus
+        unique_id: siuntu_dezute_kodas_aktyvus
+        device_class: running
+        state: >
+          {% set expires_at = state_attr('input_datetime.siuntu_dezute_kodas_galioja_iki', 'timestamp') | float(0) %}
+          {{ states('input_text.siuntu_dezute_kodas') | length == 6 and as_timestamp(now()) < expires_at }}
+    sensor:
+      - name: Siuntų dėžutės kodo likęs laikas
+        default_entity_id: sensor.siuntu_dezute_kodo_liko
+        unique_id: siuntu_dezute_kodo_liko
+        icon: mdi:timer-outline
+        state: >
+          {% set expires_at = state_attr('input_datetime.siuntu_dezute_kodas_galioja_iki', 'timestamp') | float(0) %}
+          {% set remaining = (expires_at - as_timestamp(now())) | int %}
+          {% if states('input_text.siuntu_dezute_kodas') | length != 6 or remaining <= 0 %}
+            00:00
+          {% else %}
+            {{ '%02d:%02d' | format(remaining // 60, remaining % 60) }}
+          {% endif %}
+
+script:
+  siuntu_dezute_generuoti_koda:
+    alias: Sugeneruoti kodą kurjeriui
+    icon: mdi:dialpad
+    mode: single
+    sequence:
+      - variables:
+          kodas: "{{ '%03d%03d' % (range(0, 1000) | random, range(0, 1000) | random) }}"
+          galioja_iki: "{{ as_timestamp(now()) + 300 }}"
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.siuntu_dezute_kodas
+        data:
+          value: "{{ kodas }}"
+      - action: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.siuntu_dezute_kodas_galioja_iki
+        data:
+          timestamp: "{{ galioja_iki }}"
+      - action: counter.reset
+        target:
+          entity_id: counter.siuntu_dezute_klaidos
+      - action: persistent_notification.create
+        data:
+          notification_id: siuntu_dezute_kodas
+          title: Kodas kurjeriui
+          message: >-
+            {{ kodas }} – galioja iki {{ galioja_iki | timestamp_custom('%H:%M') }}.
+            Kodas tinka vienam atidarymui.
+
+automation:
+  # -------------------------------------------------------------------
+  #  Kodo tikrinimas: M5Stack siunčia įvykį su kurjerio įvestu kodu
+  # -------------------------------------------------------------------
+  - id: siuntu_dezute_kodo_tikrinimas
+    alias: Siuntų dėžutė – kodo tikrinimas
+    mode: queued
+    triggers:
+      - trigger: event
+        event_type: esphome.siuntu_dezute_kodas
+    actions:
+      - variables:
+          ivestas: "{{ trigger.event.data.kodas | string }}"
+          kodas: "{{ states('input_text.siuntu_dezute_kodas') }}"
+          dabar: "{{ as_timestamp(now()) }}"
+          galioja_iki: "{{ state_attr('input_datetime.siuntu_dezute_kodas_galioja_iki', 'timestamp') | float(0) }}"
+          blokuota_iki: "{{ state_attr('input_datetime.siuntu_dezute_blokuota_iki', 'timestamp') | float(0) }}"
+      - choose:
+          # 1. Klaviatūra laikinai užblokuota po kelių neteisingų bandymų
+          - conditions: "{{ dabar < blokuota_iki }}"
+            sequence:
+              - action: esphome.siuntu_dezute_rodyti_pranesima
+                data:
+                  tekstas: "Užblokuota iki {{ blokuota_iki | timestamp_custom('%H:%M') }}"
+
+          # 2. Kodas teisingas ir dar galioja
+          - conditions: "{{ kodas | length == 6 and ivestas == kodas and dabar < galioja_iki }}"
+            sequence:
+              # kodas vienkartinis – iškart ištrinamas
+              - action: input_text.set_value
+                target:
+                  entity_id: input_text.siuntu_dezute_kodas
+                data:
+                  value: ""
+              - action: counter.reset
+                target:
+                  entity_id: counter.siuntu_dezute_klaidos
+              - action: persistent_notification.dismiss
+                data:
+                  notification_id: siuntu_dezute_kodas
+              - action: esphome.siuntu_dezute_atrakinti
+
+          # 3. Kodas teisingas, bet baigėsi 5 min.
+          - conditions: "{{ kodas | length == 6 and ivestas == kodas }}"
+            sequence:
+              - action: input_text.set_value
+                target:
+                  entity_id: input_text.siuntu_dezute_kodas
+                data:
+                  value: ""
+              - action: persistent_notification.dismiss
+                data:
+                  notification_id: siuntu_dezute_kodas
+              - action: esphome.siuntu_dezute_rodyti_pranesima
+                data:
+                  tekstas: "Kodas nebegalioja"
+
+        # 4. Neteisingas kodas
+        default:
+          - action: counter.increment
+            target:
+              entity_id: counter.siuntu_dezute_klaidos
+          - if:
+              - condition: numeric_state
+                entity_id: counter.siuntu_dezute_klaidos
+                above: 2
+            then:
+              # po 3 klaidų – 5 min. blokuota, kodas panaikinamas
+              - action: input_datetime.set_datetime
+                target:
+                  entity_id: input_datetime.siuntu_dezute_blokuota_iki
+                data:
+                  timestamp: "{{ as_timestamp(now()) + 300 }}"
+              - action: input_text.set_value
+                target:
+                  entity_id: input_text.siuntu_dezute_kodas
+                data:
+                  value: ""
+              - action: counter.reset
+                target:
+                  entity_id: counter.siuntu_dezute_klaidos
+              - action: persistent_notification.dismiss
+                data:
+                  notification_id: siuntu_dezute_kodas
+              - action: esphome.siuntu_dezute_rodyti_pranesima
+                data:
+                  tekstas: "Per daug bandymų"
+              - action: persistent_notification.create
+                data:
+                  notification_id: siuntu_dezute_saugumas
+                  title: Siuntų dėžutė
+                  message: "3 kartus įvestas neteisingas kodas. Klaviatūra užblokuota 5 min."
+            else:
+              - action: esphome.siuntu_dezute_rodyti_pranesima
+                data:
+                  tekstas: "Neteisingas kodas"
+
+  # -------------------------------------------------------------------
+  #  Kodas ištrinamas, kai baigiasi jo galiojimas
+  # -------------------------------------------------------------------
+  - id: siuntu_dezute_kodo_galiojimo_pabaiga
+    alias: Siuntų dėžutė – kodo galiojimo pabaiga
+    triggers:
+      - trigger: time
+        at: input_datetime.siuntu_dezute_kodas_galioja_iki
+    actions:
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.siuntu_dezute_kodas
+        data:
+          value: ""
+      - action: persistent_notification.dismiss
+        data:
+          notification_id: siuntu_dezute_kodas
+
+  # -------------------------------------------------------------------
+  #  Pranešimas savininkui po pristatymo
+  # -------------------------------------------------------------------
+  - id: siuntu_dezute_pristatymas
+    alias: Siuntų dėžutė – pristatymo pranešimas
+    triggers:
+      - trigger: event
+        event_type: esphome.siuntu_dezute_pristatymas
+    actions:
+      - action: persistent_notification.create
+        data:
+          notification_id: siuntu_dezute_pristatymas
+          title: Siuntų dėžutė
+          message: >-
+            {% if trigger.event.data.turinys == 'Pilna' %}
+            Siunta pristatyta – dėžutė pilna.
+            {% else %}
+            Durelės buvo atidarytos, bet dėžutė tuščia.
+            {% endif %}
+
+  # -------------------------------------------------------------------
+  #  Įspėjimas: durelės atidarytos be kodo
+  # -------------------------------------------------------------------
+  - id: siuntu_dezute_ispejimas
+    alias: Siuntų dėžutė – durelės atidarytos be kodo
+    triggers:
+      - trigger: event
+        event_type: esphome.siuntu_dezute_ispejimas
+    actions:
+      - action: persistent_notification.create
+        data:
+          notification_id: siuntu_dezute_ispejimas
+          title: Siuntų dėžutė – įspėjimas
+          message: "{{ trigger.event.data.priezastis }}"
